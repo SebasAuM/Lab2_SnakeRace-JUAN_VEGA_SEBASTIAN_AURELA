@@ -12,6 +12,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.util.List;
 import java.util.Map;
+import java.util.Comparator;
 import java.util.concurrent.Executors;
 
 public final class SnakeApp extends JFrame {
@@ -22,8 +23,17 @@ public final class SnakeApp extends JFrame {
   private final GameClock clock;
   private final java.util.List<Snake> snakes = new java.util.ArrayList<>();
 
+  private final CardLayout cards = new CardLayout();
+  private final JPanel mainPanel = new JPanel(cards);
+  private JLayeredPane gameScreen;
+  private JPanel pauseOverlay;
+  private JButton statsResumeButton;
+  private JLabel longestLabel;
+  private JLabel worstLabel;
+
   public SnakeApp() {
     super("The Snake Race");
+
     this.board = new Board(35, 28);
 
     int N = Integer.getInteger("snakes", 2);
@@ -35,17 +45,68 @@ public final class SnakeApp extends JFrame {
     }
 
     this.gamePanel = new GamePanel(board, () -> snakes);
-    this.actionButton = new JButton("Action");
-
-    setLayout(new BorderLayout());
-    add(gamePanel, BorderLayout.CENTER);
-    add(actionButton, BorderLayout.SOUTH);
-
-    setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-    pack();
-    setLocationRelativeTo(null);
-
+    this.actionButton = new JButton("Pause");
     this.clock = new GameClock(60, () -> SwingUtilities.invokeLater(gamePanel::repaint));
+
+    JPanel startPanel = new JPanel(new BorderLayout());
+    startPanel.setPreferredSize(new Dimension(700, 700));
+    JLabel titleLabel = new JLabel("The Snake Race", SwingConstants.CENTER);
+    JButton startButton = new JButton("Start Game");
+    startPanel.add(titleLabel, BorderLayout.CENTER);
+    startPanel.add(startButton, BorderLayout.SOUTH);
+
+    gameScreen = new JLayeredPane();
+    gameScreen.setLayout(null);
+    gameScreen.setPreferredSize(new Dimension(
+        gamePanel.getPreferredSize().width,
+        gamePanel.getPreferredSize().height + actionButton.getPreferredSize().height));
+
+    gamePanel.setBounds(0, 0, gamePanel.getPreferredSize().width, gamePanel.getPreferredSize().height);
+    gameScreen.add(gamePanel, JLayeredPane.DEFAULT_LAYER);
+
+    JPanel pauseBox = new JPanel();
+    pauseBox.setLayout(new BoxLayout(pauseBox, BoxLayout.Y_AXIS));
+    pauseBox.setOpaque(false);
+
+    JPanel statsContent = new JPanel();
+    statsContent.setLayout(new BoxLayout(statsContent, BoxLayout.Y_AXIS));
+    statsContent.setBackground(new Color(255, 255, 255, 200));
+    statsContent.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+    statsContent.add(new JLabel("Paused"));
+    longestLabel = new JLabel("Longest snake: ");
+    worstLabel = new JLabel("Peor serpiente (primera muerta): ");
+    statsContent.add(longestLabel);
+    statsContent.add(worstLabel);
+
+    statsResumeButton = new JButton("Resume");
+    statsResumeButton.addActionListener(e -> togglePause());
+    statsContent.add(statsResumeButton);
+
+    pauseBox.add(Box.createVerticalGlue());
+    pauseBox.add(statsContent);
+    pauseBox.add(Box.createVerticalGlue());
+
+    pauseOverlay = new JPanel(new BorderLayout());
+    pauseOverlay.setOpaque(false);
+    pauseOverlay.setVisible(false);
+    pauseOverlay.setBounds(0, 0, gamePanel.getPreferredSize().width, gamePanel.getPreferredSize().height);
+    pauseOverlay.add(pauseBox, BorderLayout.CENTER);
+    gameScreen.add(pauseOverlay, JLayeredPane.PALETTE_LAYER);
+
+    JPanel gameContainer = new JPanel(new BorderLayout());
+    gameContainer.add(gameScreen, BorderLayout.CENTER);
+    gameContainer.add(actionButton, BorderLayout.SOUTH);
+
+    mainPanel.add(startPanel, "menu");
+    mainPanel.add(gameContainer, "game");
+
+    setContentPane(mainPanel);
+    cards.show(mainPanel, "menu");
+
+    startButton.addActionListener(e -> {
+      cards.show(mainPanel, "game");
+      requestFocusInWindow();
+    });
 
     var exec = Executors.newVirtualThreadPerTaskExecutor();
     snakes.forEach(s -> exec.submit(new SnakeRunner(s, board)));
@@ -129,11 +190,32 @@ public final class SnakeApp extends JFrame {
   }
 
   private void togglePause() {
-    if ("Action".equals(actionButton.getText())) {
+    if ("Pause".equals(actionButton.getText())) {
       actionButton.setText("Resume");
+      // update stats atomically to avoid tearing
+      // compute longest living snake (by current size)
+      int longest = snakes.stream()
+          .filter(Snake::isAlive)
+          .mapToInt(s -> s.snapshot().size())
+          .max().orElse(0);
+      longestLabel.setText("Longest snake: " + longest);
+
+      // compute earliest death (first to die)
+      var firstDead = snakes.stream()
+          .filter(s -> s.deathTime() > 0)
+          .min(Comparator.comparingLong(Snake::deathTime));
+      if (firstDead.isPresent()) {
+        int idx = snakes.indexOf(firstDead.get()) + 1; // 1-based id
+        worstLabel.setText("Peor serpiente (primera muerta): #" + idx);
+      } else {
+        worstLabel.setText("Peor serpiente (primera muerta): N/A");
+      }
+
+      pauseOverlay.setVisible(true);
       clock.pause();
     } else {
-      actionButton.setText("Action");
+      actionButton.setText("Pause");
+      pauseOverlay.setVisible(false);
       clock.resume();
     }
   }
@@ -148,6 +230,7 @@ public final class SnakeApp extends JFrame {
       List<Snake> get();
     }
 
+    //PANELES
     public GamePanel(Board board, Supplier snakesSupplier) {
       this.board = board;
       this.snakesSupplier = snakesSupplier;

@@ -25,7 +25,9 @@ public final class SnakeRunner implements Runnable {
         maybeTurn();
         var res = board.step(snake);
         if (res == Board.MoveResult.HIT_OBSTACLE) {
-          randomTurn();
+          // si choca paila se muere
+          snake.markDead();
+          break;
         } else if (res == Board.MoveResult.ATE_TURBO) {
           turboTicks = 100;
         }

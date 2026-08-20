@@ -36,6 +36,8 @@ public final class Board {
   public synchronized Set<Position> turbo() { return new HashSet<>(turbo); }
   public synchronized Map<Position, Position> teleports() { return new HashMap<>(teleports); }
 
+  //TODO ESTA SINCRONIZADO ENTONCES PUES NO PRESENTA UN RIESGO DE CONCURRENCIA 
+  
   public synchronized MoveResult step(Snake snake) {
     Objects.requireNonNull(snake, "snake");
     var head = snake.head();
