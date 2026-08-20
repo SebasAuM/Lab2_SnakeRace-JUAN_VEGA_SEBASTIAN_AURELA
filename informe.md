@@ -1,5 +1,13 @@
 # Laboratorio: Concurrencia y Sincronización en SnakeRace
+---
+## Parte I - Wait notify exercise 
+https://github.com/JDeltax/wait-notify-excercise-AURELAVEGA
 
+Para esta solucion se utiliza un "orquestador de hilos" uno que controle a todos los demás para un avisado de cuando pararlos etc.
+Ademas de una variable de estado por hilo para notificar si están o no pausados o no cuando llegan a su momento t milisegundo.   
+estos hilos tambien deben estar sincronizados en el control
+  - Se pone `paused=true` dentro de un bloque sincronizado para que la transición sea visible y atómica respecto a `awaitIfPaused()`.
+  - Después de que el usuario pulse ENTER, se hace `paused=false` y `notifyAll()` dentro del mismo monitor. `notifyAll()` despierta a todos los hilos que están en `wait()` sobre ese monitor.
 ---
 
 ## Parte II — SnakeRace concurrente (núcleo del laboratorio)
